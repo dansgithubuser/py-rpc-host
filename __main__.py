@@ -20,6 +20,13 @@ exec('import {} as module'.format(os.path.basename(args.module)))
 
 store = {}
 
+class JsonEncoder(json.JSONEncoder):
+    def default(self, o):
+        if hasattr(o, 'to_json'):
+            return o.to_json()
+        else:
+            super().default(o)
+
 class Handler(BaseHTTPRequestHandler):
     def print_request_start(self):
         print('===== {} ====='.format(self.requestline))
@@ -45,7 +52,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/javascript')
         self.end_headers()
         pprint(json_content)
-        self.wfile.write(json.dumps(json_content).encode('utf-8'))
+        self.wfile.write(JsonEncoder().encode(json_content).encode('utf-8'))
 
     def do_GET(self):
         self.print_request_start()
