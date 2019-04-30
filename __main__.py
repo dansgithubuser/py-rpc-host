@@ -5,7 +5,7 @@ import inspect
 import json
 import os
 import pdb
-from pprint import pprint
+from pprint import pformat, pprint
 import sys
 import uuid
 
@@ -33,7 +33,9 @@ class Handler(BaseHTTPRequestHandler):
             attr_name = ''
         attr = module
         for i in attr_name.split('.'):
-            if i: attr = getattr(attr, i)
+            if not i: continue
+            if i in store: attr = store[i]
+            else: attr = getattr(attr, i)
         return (op, attr)
 
     def send_json_response(self, json_content=None):
@@ -55,6 +57,8 @@ class Handler(BaseHTTPRequestHandler):
             }
             try: json_content['args'] = repr(inspect.getargspec(attr))
             except: pass
+        elif op == 'get':
+            json_content = attr
         elif op == 'pdb':
             pdb.set_trace()
             json_content = {}
@@ -62,27 +66,34 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self.print_request_start()
-        def parse_body():
+        def call(attr):
+            args = []
+            kwargs = {}
             length = int(self.headers.get('Content-Length'))
             if length:
-                kwargs = json.loads(self.rfile.read(length))
-            else:
-                kwargs = {}
+                body = json.loads(self.rfile.read(length))
+                pprint(body)
+                for i in body:
+                    if type(i) == list: args = i
+                    else: kwargs = i
+            for i, v in enumerate(args):
+                if v in store:
+                    args[i] = store[v]
             for k, v in kwargs.items():
                 if v in store:
                     kwargs[k] = store[v]
-            pprint(kwargs)
-            return kwargs
+            print('{}, {}'.format(pformat(args), pformat(kwargs)))
+            return attr(*args, **kwargs)
         op, attr = self.parse()
         if op == 'store':
             id = str(uuid.uuid4())
-            store[id] = attr(**parse_body())
+            store[id] = call(attr)
             json_content = id
         elif op == 'eval':
-            attr(**parse_body())
+            call(attr)
             json_content = None
         elif op == 'get':
-            json_content = attr(**parse_body())
+            json_content = call(attr)
         elif op == 'unstore':
             for i in json.loads(self.rfile.read()): del store[i]
             json_content = None
