@@ -24,6 +24,8 @@ class JsonEncoder(json.JSONEncoder):
     def default(self, o):
         if hasattr(o, 'to_json'):
             return o.to_json()
+        elif o.__class__ == bytes:
+            return repr(o)
         else:
             super().default(o)
 
